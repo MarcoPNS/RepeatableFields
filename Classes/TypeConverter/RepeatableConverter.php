@@ -16,17 +16,16 @@ use Neos\ContentRepository\Exception\NodeException;
  */
 class RepeatableConverter extends AbstractTypeConverter
 {
-
-    /**
-     * @var array
-     */
-    protected $sourceTypes = ['repeatable'];
-
     /**
      * @Flow\Inject
      * @var PropertyMapper
      */
     protected $propertyMapper;
+
+    /**
+     * @var array
+     */
+    protected $sourceTypes = ['repeatable'];
 
     /**
      * @var string
@@ -44,28 +43,16 @@ class RepeatableConverter extends AbstractTypeConverter
      * @param array $subProperties not used
      * @param PropertyMappingConfigurationInterface $configuration
      * @return mixed An object or \Neos\Error\Messages\Error if the input format is not supported or could not be converted for other reasons
-     * @throws NodeException
+     * @throws
      */
     public function convertFrom($source, $targetType, array $subProperties = [], PropertyMappingConfigurationInterface $configuration = null)
     {
-        $convertedProps = [];
-        $byIndexes = [];
-        if( $source )
-            foreach( $source as $key => $group ){
-                foreach( $group as $index => $val ){
-                    if( $val ){
-                        $conf = $configuration->getConfigurationValue('Mireo\RepeatableFields\TypeConverter\RepeatableConverter', $index);
-                        $targ = $conf['type']??'string';
-                        $v =  $this->propertyMapper->convert($val, $targ);
-                        $byIndexes[$index][] = $v;
-                    }else{
-                        $v = $val;
-                    }
-                    $convertedProps[$key][$index] = $v;
-                }
-            }
 
-        $repeatable = new Repeatable($convertedProps, $byIndexes, $source);
+        $fieldsDeclaration = $configuration->getConfigurationValue('Mireo\RepeatableFields\TypeConverter\RepeatableConverter', 'fieldsDeclaration');
+
+        $repeatable = new Repeatable($source, $fieldsDeclaration);
+        $repeatable->injectPropertyMapper($this->propertyMapper);
+        $repeatable->initialize();
 
         return $repeatable;
     }

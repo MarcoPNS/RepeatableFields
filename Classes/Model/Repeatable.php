@@ -2,6 +2,8 @@
 namespace Mireo\RepeatableFields\Model;
 
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Property\PropertyMapper;
+
 /**
  * Repeatable
  *
@@ -9,36 +11,84 @@ use Neos\Flow\Annotations as Flow;
  */
 class Repeatable implements \Iterator, \JsonSerializable{
 
-    /** @var array */
-    protected $byGroups;
+    /**
+     * @var PropertyMapper
+     */
+    protected $propertyMapper;
 
     /** @var array */
-    private $byFields;
+    protected $convertedFields;
+
+    /** @var array */
+    private $nestedFields;
 
     /** @var array */
     private $source;
+
+    /** @var array */
+    private $fieldsDeclaration;
 
     /**
      * @var int
      */
     private $position = 0;
 
-    public function __construct($byGroups, $byFields, $source) {
-        $this->byGroups = $byGroups;
-        $this->byFields = $byFields;
-        $this->source = $source;
+    public function __construct($source, $fieldsDeclaration) {
+        $this->setSource($source);
+        $this->fieldsDeclaration = $fieldsDeclaration;
     }
 
-    private function getSource(){
+    /**
+     * @param PropertyMapper $propertyMapper
+     */
+    public function injectPropertyMapper($propertyMapper){
+        $this->propertyMapper = $propertyMapper;
+    }
+
+    /**
+     * @param $types
+     * @throws \Neos\Flow\Property\Exception
+     * @throws \Neos\Flow\Security\Exception
+     */
+    public function initialize()
+    {
+        $convertedProps = [];
+        $byIndexes = [];
+        if ($this->source){
+            foreach ($this->source as $key => $group) {
+                foreach ($group as $index => $val) {
+                    if( !isset($this->fieldsDeclaration[$index]) )
+                        continue;
+                    if ($val) {
+                        $conf = $this->fieldsDeclaration[$index];
+                        $target = $conf['type'] ?? 'string';
+                        $v = $this->propertyMapper->convert($val, $target);
+                    } else {
+                        $v = $val;
+                    }
+                    $byIndexes[$index][] = $v;
+                    $convertedProps[$key][$index] = $v;
+                }
+            }
+        }
+        $this->convertedFields = $convertedProps;
+        $this->nestedFields = $byIndexes;
+    }
+
+    public function convertedFields(){
+        return $this->convertedFields;
+    }
+
+    public function getSource(){
         return $this->source;
     }
 
-    public function getByGroups(){
-        return $this->byGroups;
+    public function setSource($source){
+        $this->source = $source;
     }
 
-    public function getByField($field){
-        return isset($this->byFields[$field])?$this->byFields[$field]:null;
+    public function nestedField($field){
+        return isset($this->nestedFields[$field])?$this->nestedFields[$field]:null;
     }
 
     /**
@@ -48,7 +98,7 @@ class Repeatable implements \Iterator, \JsonSerializable{
      * @since 5.0.0
      */
     public function current(){
-        return $this->byGroups[$this->position];
+        return $this->convertedFields[$this->position];
     }
 
     /**
@@ -79,7 +129,7 @@ class Repeatable implements \Iterator, \JsonSerializable{
      * @since 5.0.0
      */
     public function valid(){
-        if( isset($this->byGroups[$this->position]) )
+        if( isset($this->convertedFields[$this->position]) )
             return true;
         return false;
     }
